@@ -1,0 +1,16 @@
+version: '1.0.{build}'
+image: Visual Studio 2017
+init:
+  - cmd: git config --global core.autocrlf true
+install:
+  # TODO
+before_build:
+  - cmd: dotnet --version
+  - cmd: dotnet --list-runtimes
+  - cmd: dotnet restore --verbosity m
+build_script:
+  - cmd: dotnet build dotnet-mon.sln
+cache:
+  - '%LocalAppData%\NuGet\v3-cache' # NuGet v3
+  
+
