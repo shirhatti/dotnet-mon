@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <PackAsTool>true</PackAsTool>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <RootNamespace>dotnet_mon</RootNamespace>
+    <RuntimeFrameworkVersion>3.0.0-preview1-26731-01</RuntimeFrameworkVersion>
+    <NETCoreAppMaximumVersion>99.9</NETCoreAppMaximumVersion>
+    <RestoreSources>
+      https://api.nuget.org/v3/index.json;
+      https://dotnet.myget.org/F/dotnet-core/api/v3/index.json;
+      https://dotnet.myget.org/F/aspnetcore-dev/api/v3/index.json;
+    </RestoreSources>
+  </PropertyGroup>
+
+</Project>
