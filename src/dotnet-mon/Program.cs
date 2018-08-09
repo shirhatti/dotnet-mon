@@ -1,22 +1,190 @@
-﻿using System;
+﻿using McMaster.Extensions.CommandLineUtils;
+using System;
+using System.Diagnostics;
+using System.IO;
 using System.IO.Pipes;
+using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace dotnet_mon
 {
     class Program
     {
-        static async Task Main(string[] args)
+        public static void Main(string[] args)
         {
-            var clientStream = new NamedPipeClientStream("dotnetmon");
-            clientStream.Connect();
-            Console.WriteLine("Connected to named pipe");
+            if (args.Contains("--debug"))
+            {
+                Console.WriteLine($"Ready for debugger to attach. Process ID: {Process.GetCurrentProcess().Id}");
+                Console.Write("Press ENTER to Continue");
+                Console.ReadLine();
+                args = args.Except(new[] { "--debug" }).ToArray();
+            }
+
+            var app = new CommandLineApplication();
+            app.FullName = "SignalR Client Samples";
+            app.Description = "Client Samples for SignalR";
+
+            HubSample.Register(app);
+
+            app.Command("help", cmd =>
+            {
+                cmd.Description = "Get help for the application, or a specific command";
+
+                var commandArgument = cmd.Argument("<COMMAND>", "The command to get help for");
+                cmd.OnExecute(() =>
+                {
+                    app.ShowHelp(commandName: commandArgument.Value);
+                    return 0;
+                });
+            });
+
+            app.OnExecute(() =>
+            {
+                app.ShowHelp();
+                return 0;
+            });
+
+            app.Execute(args);
+        }
+    }
+
+    internal class HubSample
+    {
+        internal static void Register(CommandLineApplication app)
+        {
+            app.Command("hub", cmd =>
+            {
+                cmd.Description = "Tests a connection to a hub";
+
+                var baseUrlArgument = cmd.Argument("<BASEURL>", "The URL to the Chat Hub to test");
+
+                cmd.OnExecute(() => ExecuteAsync(baseUrlArgument.Value));
+            });
+        }
+
+        public static async Task<int> ExecuteAsync(string baseUrl)
+        {
+            var uri = baseUrl == null ? new Uri("net.tcp://127.0.0.1:9001") : new Uri(baseUrl);
+            Console.WriteLine("Connecting to {0}", uri);
+            var connectionBuilder = new HubConnectionBuilder()
+                .ConfigureLogging(logging =>
+                {
+                    //logging.AddConsole();
+                });
+
+            if (uri.Scheme == "net.tcp")
+            {
+                connectionBuilder.WithEndPoint(uri);
+            }
+            else
+            {
+                connectionBuilder.WithUrl(uri);
+            }
+
+            var connection = connectionBuilder.Build();
+
+            Console.CancelKeyPress += (sender, a) =>
+            {
+                a.Cancel = true;
+                connection.DisposeAsync().GetAwaiter().GetResult();
+            };
+
+            // Set up handler
+            connection.On<string>("Send", Console.WriteLine);
+
+            CancellationTokenSource closedTokenSource = null;
+
+            connection.Closed += e =>
+            {
+                // This should never be null by the time this fires
+                closedTokenSource.Cancel();
+
+                Console.WriteLine("Connection closed...");
+                return Task.CompletedTask;
+            };
+
             while (true)
             {
-                var buffer = new byte[100];
-                await clientStream.ReadAsync(buffer, 0, buffer.Length);
-                Console.WriteLine(Encoding.Unicode.GetString(buffer));
+                // Dispose the previous token
+                closedTokenSource?.Dispose();
+
+                // Create a new token for this run
+                closedTokenSource = new CancellationTokenSource();
+
+                // Connect to the server
+                if (!await ConnectAsync(connection))
+                {
+                    break;
+                }
+
+                Console.WriteLine("Connected to {0}", uri); ;
+
+                // Handle the connected connection
+                while (true)
+                {
+                    try
+                    {
+                        var line = Console.ReadLine();
+
+                        if (line == null || closedTokenSource.Token.IsCancellationRequested)
+                        {
+                            break;
+                        }
+
+                        await connection.InvokeAsync<object>("Send", line);
+                    }
+                    catch (IOException)
+                    {
+                        // Process being shutdown
+                        break;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // The connection closed
+                        break;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // We're shutting down the client
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Send could have failed because the connection closed
+                        System.Console.WriteLine(ex);
+                        break;
+                    }
+                }
+            }
+
+            return 0;
+        }
+
+        private static async Task<bool> ConnectAsync(HubConnection connection)
+        {
+            // Keep trying to until we can start
+            while (true)
+            {
+                try
+                {
+                    await connection.StartAsync();
+                    return true;
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Client side killed the connection
+                    return false;
+                }
+                catch (Exception)
+                {
+                    Console.WriteLine("Failed to connect, trying again in 5000(ms)");
+
+                    await Task.Delay(5000);
+                }
             }
         }
     }

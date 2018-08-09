@@ -1,7 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="../../build/repo.props" />
+  
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Hosting.Abstractions" Version="$(MicrosoftAspNetCoreAppPackageVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="$(MicrosoftAspNetCoreAppPackageVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="$(MicrosoftAspNetCoreAppPackageVersion)" />
+  </ItemGroup>
 
 </Project>

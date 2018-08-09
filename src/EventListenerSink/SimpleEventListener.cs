@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.SignalR;
+using System;
 using System.Diagnostics;
 using System.Diagnostics.Tracing;
 
@@ -6,13 +7,12 @@ namespace EventListenerSink
 {
     public class SimpleEventListener : EventListener
     {
-        public NamedPipeSink Sink { get; private set; }
+        private IHubContext<DiagnosticsHub> _hubContext;
         public int EventCount { get; private set; } = 0;
 
-        public SimpleEventListener()
+        public SimpleEventListener(IHubContext<DiagnosticsHub> hubContext)
         {
-            //Sink = new NamedPipeSink("dotnetmon" + Process.GetCurrentProcess().Id);
-            Sink = new NamedPipeSink("dotnetmon");
+            _hubContext = hubContext;
         }
         protected override void OnEventSourceCreated(EventSource eventSource)
         {
@@ -28,14 +28,14 @@ namespace EventListenerSink
         }
         protected override void OnEventWritten(EventWrittenEventArgs eventData)
         {
-            //Console.WriteLine($"ID = {eventData.EventId} Name = {eventData.EventName}");
-            //for (int i = 0; i < eventData.Payload.Count; i++)
-            //{
-            //    string payloadString = eventData.Payload[i] != null ? eventData.Payload[i].ToString() : string.Empty;
-            //    Console.WriteLine($"\tName = \"{eventData.PayloadNames[i]}\" Value = \"{payloadString}\"");
-            //}
-            //Console.WriteLine("\n");
-            Sink.SendMessage($"ID = {eventData.EventId} Name = {eventData.EventName}");
+            _hubContext.Clients.All.SendAsync("Send", $"\nID = {eventData.EventId} Name = {eventData.EventName}");
+            //Console.WriteLine($"\nID = {eventData.EventId} Name = {eventData.EventName}");
+            for (int i = 0; i < eventData.Payload.Count; i++)
+            {
+                string payloadString = eventData.Payload[i] != null ? eventData.Payload[i].ToString() : string.Empty;
+                //Console.WriteLine($"\tName = \"{eventData.PayloadNames[i]}\" Value = \"{payloadString}\"");
+                _hubContext.Clients.All.SendAsync("Send", $"\tName = \"{eventData.PayloadNames[i]}\" Value = \"{payloadString}\"");
+            }
             EventCount++;
         }
     }

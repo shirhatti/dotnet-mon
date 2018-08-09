@@ -15,15 +15,12 @@ namespace WebApp
     {
         public static void Main(string[] args)
         {
-            using (var listener = new SimpleEventListener())
-            {
-                listener.Sink.Start();
                 CreateWebHostBuilder(args).Build().Run();
-            }
         }
 
         public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
             WebHost.CreateDefaultBuilder(args)
+                .UseDotNetMon()
                 .UseStartup<Startup>();
     }
 }
