@@ -6,6 +6,9 @@ install:
   # TODO
 before_build:
   - cmd: dotnet --version
+  - cmd: curl -fsS -o dotnet-install.ps1 https://raw.githubusercontent.com/dotnet/cli/master/scripts/obtain/dotnet-install.ps1
+  - ps: .\dotnet-install.ps1 -Runtime dotnet -Version 3.0.0-preview1-26806-04
+  - ps: .\dotnet-install.ps1 -Runtime aspnetcore -Version 3.0.0-alpha1-10223
   - cmd: dotnet --list-runtimes
   - cmd: dotnet restore --verbosity m
 build_script:
@@ -13,4 +16,3 @@ build_script:
 cache:
   - '%LocalAppData%\NuGet\v3-cache' # NuGet v3
   
-
