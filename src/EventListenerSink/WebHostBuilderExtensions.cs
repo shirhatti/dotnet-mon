@@ -2,6 +2,8 @@ using EventListenerSink;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Collections.Concurrent;
 using System.Net;
 
 namespace Microsoft.AspNetCore.Hosting
@@ -14,6 +16,8 @@ namespace Microsoft.AspNetCore.Hosting
             {
                 services.AddSingleton<SimpleEventListener>();
                 services.AddSingleton<IStartupFilter>(new DiagnosticsStartupFilter());
+                services.AddHostedService<DispatcherService>();
+                services.AddSingleton(new BlockingCollection<Tuple<string,string>>());
                 services.AddSignalR().AddMessagePackProtocol();
                 services.Configure<KestrelServerOptions>(options =>
                 {

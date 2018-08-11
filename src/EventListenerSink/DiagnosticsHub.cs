@@ -8,10 +8,5 @@ namespace EventListenerSink
 {
     public class DiagnosticsHub : Hub
     {
-        public override Task OnConnectedAsync()
-        {
-            Console.WriteLine("Client connected");
-            return Task.CompletedTask;
-        }
     }
 }

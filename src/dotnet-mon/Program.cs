@@ -1,100 +1,30 @@
-﻿using McMaster.Extensions.CommandLineUtils;
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.IO.Pipes;
-using System.Linq;
-using System.Text;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace dotnet_mon
 {
     class Program
     {
-        public static void Main(string[] args)
+        private static readonly Table _table = new Table(150);
+        public static async Task<int> Main(string[] args)
         {
-            if (args.Contains("--debug"))
-            {
-                Console.WriteLine($"Ready for debugger to attach. Process ID: {Process.GetCurrentProcess().Id}");
-                Console.Write("Press ENTER to Continue");
-                Console.ReadLine();
-                args = args.Except(new[] { "--debug" }).ToArray();
-            }
-
-            var app = new CommandLineApplication();
-            app.FullName = "SignalR Client Samples";
-            app.Description = "Client Samples for SignalR";
-
-            HubSample.Register(app);
-
-            app.Command("help", cmd =>
-            {
-                cmd.Description = "Get help for the application, or a specific command";
-
-                var commandArgument = cmd.Argument("<COMMAND>", "The command to get help for");
-                cmd.OnExecute(() =>
-                {
-                    app.ShowHelp(commandName: commandArgument.Value);
-                    return 0;
-                });
-            });
-
-            app.OnExecute(() =>
-            {
-                app.ShowHelp();
-                return 0;
-            });
-
-            app.Execute(args);
-        }
-    }
-
-    internal class HubSample
-    {
-        internal static void Register(CommandLineApplication app)
-        {
-            app.Command("hub", cmd =>
-            {
-                cmd.Description = "Tests a connection to a hub";
-
-                var baseUrlArgument = cmd.Argument("<BASEURL>", "The URL to the Chat Hub to test");
-
-                cmd.OnExecute(() => ExecuteAsync(baseUrlArgument.Value));
-            });
-        }
-
-        public static async Task<int> ExecuteAsync(string baseUrl)
-        {
-            var uri = baseUrl == null ? new Uri("net.tcp://127.0.0.1:9001") : new Uri(baseUrl);
+            var uri = new Uri("net.tcp://127.0.0.1:9001");
             Console.WriteLine("Connecting to {0}", uri);
-            var connectionBuilder = new HubConnectionBuilder()
-                .ConfigureLogging(logging =>
-                {
-                    //logging.AddConsole();
-                });
+            var connection = new HubConnectionBuilder()
+                .WithEndPoint(uri)
+                .Build();
 
-            if (uri.Scheme == "net.tcp")
+            var exitEvent = new ManualResetEvent(false);
+            Console.CancelKeyPress += delegate (object sender, ConsoleCancelEventArgs e)
             {
-                connectionBuilder.WithEndPoint(uri);
-            }
-            else
-            {
-                connectionBuilder.WithUrl(uri);
-            }
-
-            var connection = connectionBuilder.Build();
-
-            Console.CancelKeyPress += (sender, a) =>
-            {
-                a.Cancel = true;
-                connection.DisposeAsync().GetAwaiter().GetResult();
+                e.Cancel = true;
+                exitEvent.Set();
             };
 
             // Set up handler
-            connection.On<string>("Send", Console.WriteLine);
+            connection.On<string>("Send", DataHandler);
 
             CancellationTokenSource closedTokenSource = null;
 
@@ -107,61 +37,33 @@ namespace dotnet_mon
                 return Task.CompletedTask;
             };
 
-            while (true)
+            while(true)
             {
-                // Dispose the previous token
-                closedTokenSource?.Dispose();
-
-                // Create a new token for this run
-                closedTokenSource = new CancellationTokenSource();
-
-                // Connect to the server
-                if (!await ConnectAsync(connection))
+                if (await ConnectAsync(connection))
                 {
                     break;
                 }
-
-                Console.WriteLine("Connected to {0}", uri); ;
-
-                // Handle the connected connection
-                while (true)
-                {
-                    try
-                    {
-                        var line = Console.ReadLine();
-
-                        if (line == null || closedTokenSource.Token.IsCancellationRequested)
-                        {
-                            break;
-                        }
-
-                        await connection.InvokeAsync<object>("Send", line);
-                    }
-                    catch (IOException)
-                    {
-                        // Process being shutdown
-                        break;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // The connection closed
-                        break;
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // We're shutting down the client
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        // Send could have failed because the connection closed
-                        System.Console.WriteLine(ex);
-                        break;
-                    }
-                }
             }
 
+            Console.WriteLine("Listening. Press Ctrl + C to stop listening...");
+            _table.Header = new Tuple<string, string>("Measure", "Value");
+            _table.Start();
+            exitEvent.WaitOne();
+            _table.Dispose();
+
             return 0;
+        }
+
+        private static void DataHandler(string measure)
+        {
+            if (_table.Data.TryGetValue(measure, out int count))
+            {
+                if (!_table.Data.TryUpdate(measure, count + 1, count))
+                {
+                    throw new NotSupportedException();
+                }
+            }
+            _table.Data.TryAdd(measure, 1);
         }
 
         private static async Task<bool> ConnectAsync(HubConnection connection)

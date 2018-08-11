@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.Tracing;
 using System.Reflection;
+using System.Text;
 
 namespace EventListenerSink
 {
